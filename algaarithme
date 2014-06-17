@@ -1,0 +1,201 @@
+#
+#.SYNOPSIS
+# Checks whether a given number was generated using the Luhn algorithm.
+#
+#.PARAMETER Number
+# The number you want to validate.
+#
+#.EXAMPLE
+# Test-LuhnValidation -Number "4716547178783137"
+#
+function Test-LuhnValidation
+{
+    [CmdletBinding()]
+    param([string]$Number)
+   
+    if(($Number.Length % 2) -ne 0)
+    {
+        $Number = $Number.Insert(0, 0)
+    }
+    
+    $Length = $Number.Length
+    $Regex = "(\d)" * $Length
+    
+    if($Number -match $Regex)
+    {
+        $Sum = 0
+        $OrigMatches = $Matches
+    
+        for($i = 1; $i -lt $OrigMatches.Count; $i++)
+        {
+            if(($i % 2) -ne 0)
+            {
+                $digit = ([int]::Parse($OrigMatches[$i]) * 2)
+                if($digit.ToString() -match '(\d)(\d)')
+                {
+                   $digit = [int]::Parse($Matches[1]) + [int]::Parse($Matches[2])
+                }
+            }
+            else 
+            {
+                $digit = [int]::Parse($OrigMatches[$i])
+            }
+            $Sum += $digit
+        }
+        if(($Sum % 10) -eq 0)
+        {
+          return $True
+        }
+        else
+        {
+           return $False
+        }
+    }
+    else
+    {
+        Write-Host "Please Check Your Input"
+    }
+}
+#.SYNOPSIS
+# Checks the Levenshtein Distance (also known as Edit Distance) between two strings.
+#
+#.PARAMETER Source
+# The string you want to test.
+#
+#.PARAMETER Reference
+# The string that you are testing against.
+#
+#.PARAMETER Similarity
+# If you use this parameter the output of the function will be a percentage of how similar the string are.
+#
+function Test-LevenshteinDistance
+{
+    [CmdletBinding(HelpUri="http://taylorgibb.com")]
+    Param( [Parameter(Position=0,Mandatory=$True)]
+           [string]$Source,
+           [Parameter(Position=1,Mandatory=$True)]
+           [string]$Reference,
+           [Parameter(Position=2,Mandatory=$False)]
+           [switch]$Similarity
+         )
+   
+    $SourceLength = $Source.Length
+    $ReferenceLength = $Reference.Length
+
+    $Grid = New-Object -TypeName 'int[,]' -ArgumentList  ($SourceLength + 1),($ReferenceLength + 1)
+
+    if($SourceLength -eq 0){return $ReferenceLength}
+    if($ReferenceLength -eq 0){return $SourceLength}
+    
+    #Sets Y Axis
+    for ($i = 0; $i -le $SourceLength; $i++)
+    {
+       $Grid[$i, 0] = $i
+    }
+
+    #Sets X Axis
+    for ($i = 0; $i -le $ReferenceLength; $i++)
+    {
+       $Grid[0, $i] = $i
+    }
+
+    #Loops Through Each Row (X)
+    for($i = 1; $i -le $SourceLength; $i++)
+    {
+        #Loops Throgh Each Column in the Row (Y)
+        for($j  = 1; $j -le $ReferenceLength; $j++)
+        {
+           if($Reference[$j - 1] -eq $Source[$i - 1])
+           {
+                [int]$cost = 0
+           } 
+           else
+           {
+                [int]$cost = 1
+           }
+           $Grid[$i, $j] = [System.Math]::Min(([System.Math]::Min((($Grid[($i - 1), $j]) + 1), (($Grid[$i, ($j - 1)]) + 1))), (($Grid[($i - 1), ($j - 1)]) + $cost))
+        }
+    } 
+
+    if($Similarity.IsPresent -eq $True)
+    {
+        $Longest = [System.Math]::Max($SourceLength, $ReferenceLength)
+        return (100 - (($Grid[$SourceLength,$ReferenceLength] / $Longest) * 100))
+    }
+    return $Grid[$SourceLength,$ReferenceLength]
+}
+
+#
+#.SYNOPSIS
+# Checks the Jaro Distance between two strings.
+#
+#.PARAMETER Source
+# The string you want to test.
+#
+#.PARAMETER Reference
+# The string that you are testing against.
+#
+function Test-JaroDistance
+{
+    [CmdletBinding(HelpUri="http://taylorgibb.com")]
+    Param(
+            [Parameter(Position=0,Mandatory=$True)]
+            [string]$Source,
+            [Parameter(Position=1,Mandatory=$True)]
+            [string]$Reference
+         )
+    
+    if([String]::IsNullOrEmpty($Source) -or [String]::IsNullOrEmpty($Reference))
+    {
+        return 0;    
+    }
+    
+    #Get The Number For Acceptable Transpositions
+    $Least = [Math]::Floor([Math]::Max($Source.Length,$Reference.Length) / 2) - 1
+    
+    #Get The Common Characters in the Two Strings
+    [string]$commons = $null
+    for($i = 0; $i -lt $Source.Length; $i++)
+    {
+        for($j = 0;$j -lt $Reference.Length; $j++)
+        {
+            if($Source[$i] -eq $Reference[$j] -and ($j -in ($i - $Least)..($i + $Least)))
+            {
+                $commons += $Source[$i]
+            }
+        }
+    }
+    
+    [string]$commonsReverse = $null
+    for($i = 0; $i -lt $Reference.Length; $i++)
+    {
+        for($j = 0;$j -lt $Source.Length; $j++)
+        {
+            if($Reference[$i] -eq $Source[$j] -and ($j -in ($i - $Least)..($i + $Least)))
+            {
+                $commonsReverse += $Reference[$i]
+            }
+        }
+    }
+    
+    if([String]::IsNullOrEmpty($commons)){return 0}
+    if([String]::IsNullOrEmpty($commonsReverse)){return 0}
+    
+    #Get Transpositions
+    $transpositions = 0
+    for($i = 0; $i -lt $commons.Length; $i++)
+    {
+        if($commons[$i] -ne $commonsReverse[$i])
+        {
+            $transpositions++
+        }
+    }
+    $transpositions = ($transpositions / 2)
+    
+    return [String]::Format("{0:0.00}", ((($commons.Length / $Source.Length) + ($commons.Length / $Reference.Length) + (($commons.Length - $transpositions) / $commons.Length)) / 3))
+}
+
+
+Export-ModuleMember -Function Test-LuhnValidation
+Export-ModuleMember -Function Test-LevenshteinDistance
+Export-ModuleMember -Function Test-JaroDistance
